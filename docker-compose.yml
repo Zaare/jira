@@ -1,0 +1,36 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: /code/entrypoint.sh
+    volumes:
+      - .:/code
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./.env
+    depends_on:
+      - db
+    networks:
+      - jiranet
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: jira_username
+      POSTGRES_PASSWORD: jira_password
+      POSTGRES_DB: jira_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - jiranet
+
+volumes:
+  postgres_data:
+
+networks:
+  jiranet:
+    driver: bridge
