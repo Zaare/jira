@@ -27,8 +27,18 @@ class OrganizationAdmin(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.organization.name}"
     
-        
+class Sprint(models.Model):
+    name = models.CharField(max_length=255, verbose_name='نام')
+    start_date = models.DateTimeField(verbose_name='تاریخ شروع')
+    end_date = models.DateTimeField(verbose_name='تاریخ پایان')
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='sprints', verbose_name='سازمان')
 
+    class Meta:
+        verbose_name = 'اسپرینت'
+        verbose_name_plural = 'اسپرینت‌ها'
+
+    def __str__(self):
+        return self.name
 
 class Task(models.Model):
     PRIORITY_CHOICES = [
@@ -51,6 +61,7 @@ class Task(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_tasks', verbose_name='ایجاد شده توسط')
     assigned_to = models.ForeignKey(User, on_delete=models.CASCADE, related_name='assigned_tasks', verbose_name='اختصاص داده شده به')
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='tasks', verbose_name='سازمان')
+    sprint = models.ForeignKey(Sprint, on_delete=models.CASCADE, related_name='tasks', verbose_name='اسپرینت', null=True, blank=True)
 
     def __str__(self):
         return self.title
@@ -73,3 +84,28 @@ class Task(models.Model):
         )
         verbose_name = 'تسک'
         verbose_name_plural = 'تسک‌ها'
+
+class Comment(models.Model):
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='comments', verbose_name='تسک')
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='comments', verbose_name='نویسنده')
+    content = models.TextField(verbose_name='محتوا')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاریخ ایجاد')
+
+    class Meta:
+        verbose_name = 'کامنت'
+        verbose_name_plural = 'کامنت‌ها'
+
+    def __str__(self):
+        return f"{self.author.username} - {self.task.title}"
+
+
+class Mention(models.Model):
+    comment = models.ForeignKey(Comment, on_delete=models.CASCADE, related_name='mentions', verbose_name='کامنت')
+    mentioned_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='mentions', verbose_name='کاربر منشن شده')
+
+    class Meta:
+        verbose_name = 'منشن'
+        verbose_name_plural = 'منشن‌ها'
+
+    def __str__(self):
+        return f"{self.mentioned_user.username} - {self.comment.content[:20]}"
