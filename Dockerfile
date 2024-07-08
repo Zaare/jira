@@ -16,9 +16,6 @@ RUN pip install --upgrade pip && \
 # Copy the rest of the application code
 COPY . /code/
 
-# Collect static files
-RUN python manage.py collectstatic --noinput
-
 # Add entrypoint script
 RUN chmod +x /code/entrypoint.sh
 
