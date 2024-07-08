@@ -23,5 +23,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
     path('api/v1/', schema_view.with_ui('swagger', cache_timeout=0)),
-    path('api/v1/', include('dj_rest_auth.urls')),
+    path('', include('dj_rest_auth.urls')),
+    path('tasks/', include('tasks.urls')),
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

@@ -50,6 +50,9 @@ INSTALLED_APPS = [
     'corsheaders',
     'dj_rest_auth',
     'django_filters',
+    'guardian',
+
+    'tasks',
 ]
 
 MIDDLEWARE = [
@@ -144,6 +147,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
@@ -154,6 +158,11 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.coreapi.AutoSchema'
 }
+
+AUTHENTICATION_BACKENDS = (
+    'django.contrib.auth.backends.ModelBackend',
+    'guardian.backends.ObjectPermissionBackend',
+)
 
 REST_AUTH = {
     'ACCOUNT_LOGOUT_ON_GET': False,
