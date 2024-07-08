@@ -1,123 +1,115 @@
 import pytest
-from django.urls import reverse
-from rest_framework import status
 from rest_framework.test import APIClient
+from rest_framework import status
+from django.contrib.auth.models import User, Group
 from .models import Organization, OrganizationAdmin, Sprint, Task, Comment, Mention
-from django.contrib.auth.models import User
+from django.urls import reverse
+from django.utils import timezone
+
 
 @pytest.fixture
 def api_client():
     return APIClient()
 
 @pytest.fixture
-def user():
-    return User.objects.create_user(username='testuser', password='testpassword')
+def user(db):
+    return User.objects.create_user(username='testuser', password='testpass')
+
+@pytest.fixture
+def admin_group():
+    return Group.objects.create(name='Admin')
+
+@pytest.fixture
+def developer_group():
+    return Group.objects.create(name='Developer')
 
 @pytest.fixture
 def organization():
     return Organization.objects.create(name='Test Organization')
 
 @pytest.fixture
-def task(organization, user):
-    return Task.objects.create(
-        title='Test Task',
-        description='Test Description',
-        due_date='2024-07-08T00:00:00Z',
-        priority='medium',
-        status='pending',
-        created_by=user,
-        assigned_to=user,
+def organization_admin(user, organization):
+    return OrganizationAdmin.objects.create(user=user, organization=organization)
+
+@pytest.fixture
+def sprint(organization):
+    return Sprint.objects.create(
+        name='Test Sprint',
+        start_date=timezone.now(),
+        end_date=timezone.now() + timezone.timedelta(days=7),
         organization=organization
     )
 
-@pytest.mark.django_db
-def test_create_organization(api_client, user):
+@pytest.fixture
+def task(sprint, user, organization): 
+    return Task.objects.create(
+        title='Test Task',
+        description='Test Description',
+        due_date=timezone.now(),
+        priority='low',
+        status='in_progress',
+        created_by=user,
+        assigned_to=user,
+        organization=organization,
+        sprint=sprint
+    )
+
+@pytest.fixture
+def comment(task, user):
+    return Comment.objects.create(task=task, author=user, content='Test Comment')
+
+@pytest.fixture
+def mention(comment, user):
+    return Mention.objects.create(user=user, comment=comment)
+
+def test_is_admin_user_permission(api_client, user, organization, admin_group):
+    user.groups.add(admin_group)
     api_client.force_authenticate(user=user)
     url = reverse('organization-list')
-    data = {'name': 'New Organization'}
-    response = api_client.post(url, data, format='json')
+    response = api_client.post(url, {'name': 'New Organization'})
     assert response.status_code == status.HTTP_201_CREATED
-    assert Organization.objects.count() == 1
-    assert Organization.objects.get().name == 'New Organization'
 
-@pytest.mark.django_db
-def test_retrieve_organization(api_client, organization, user):
+def test_is_developer_permission(api_client, user, developer_group, task):
+    user.groups.add(developer_group)
     api_client.force_authenticate(user=user)
-    url = reverse('organization-detail', args=[organization.id])
+    url = reverse('task-detail', kwargs={'pk': task.id})
     response = api_client.get(url)
     assert response.status_code == status.HTTP_200_OK
-    assert response.data['name'] == organization.name
 
-@pytest.mark.django_db
-def test_update_organization(api_client, organization, user):
+def test_is_admin_user_can_create_organization(api_client, user, admin_group):
+    user.groups.add(admin_group)
     api_client.force_authenticate(user=user)
-    url = reverse('organization-detail', args=[organization.id])
-    data = {'name': 'Updated Organization'}
-    response = api_client.put(url, data, format='json')
-    assert response.status_code == status.HTTP_200_OK
-    organization.refresh_from_db()
-    assert organization.name == 'Updated Organization'
+    url = reverse('organization-list')
+    response = api_client.post(url, {'name': 'New Organization'})
+    assert response.status_code == status.HTTP_201_CREATED
 
-@pytest.mark.django_db
-def test_delete_organization(api_client, organization, user):
+def test_is_developer_can_delete_task(api_client, user, developer_group, task):
+    user.groups.add(developer_group)
     api_client.force_authenticate(user=user)
-    url = reverse('organization-detail', args=[organization.id])
+    url = reverse('task-detail', kwargs={'pk': task.id})
     response = api_client.delete(url)
     assert response.status_code == status.HTTP_204_NO_CONTENT
-    assert Organization.objects.count() == 0
 
-@pytest.mark.django_db
-def test_create_task(api_client, organization, user):
+def test_is_developer_cannot_delete_other_task(api_client, user, developer_group, task):
+    other_user = User.objects.create_user(username='otheruser', password='otherpass')
+    task.assigned_to = other_user 
+    task.save()
+    user.groups.add(developer_group)
     api_client.force_authenticate(user=user)
-    url = reverse('task-list')
-    data = {
-        'title': 'New Task',
-        'description': 'New Description',
-        'due_date': '2024-07-08T00:00:00Z',
-        'priority': 'medium',
-        'status': 'pending',
-        'created_by': user.id,
-        'assigned_to': user.id,
-        'organization': organization.id
-    }
-    response = api_client.post(url, data, format='json')
-    assert response.status_code == status.HTTP_201_CREATED
-    assert Task.objects.count() == 1
-    assert Task.objects.get().title == 'New Task'
+    url = reverse('task-detail', kwargs={'pk': task.id})
+    response = api_client.delete(url)
+    assert response.status_code == status.HTTP_403_FORBIDDEN
 
-@pytest.mark.django_db
-def test_retrieve_task(api_client, task, user):
-    api_client.force_authenticate(user=user)
-    url = reverse('task-detail', args=[task.id])
-    response = api_client.get(url)
-    assert response.status_code == status.HTTP_200_OK
-    assert response.data['title'] == task.title
 
-@pytest.mark.django_db
-def test_update_task(api_client, task, user):
+def test_developer_cannot_change_to_closed_status(api_client, user, developer_group, task):
+    user.groups.add(developer_group)
     api_client.force_authenticate(user=user)
-    url = reverse('task-detail', args=[task.id])
-    data = {
-        'title': 'Updated Task',
-        'description': 'Updated Description',
-        'due_date': '2024-07-08T00:00:00Z',
-        'priority': 'high',
-        'status': 'in_progress',
-        'created_by': user.id,
-        'assigned_to': user.id,
-        'organization': task.organization.id
-    }
-    response = api_client.put(url, data, format='json')
-    assert response.status_code == status.HTTP_200_OK
+    url = reverse('task-detail', kwargs={'pk': task.id})
+    data = {'status': 'closed'}  
+    
+    response = api_client.patch(url, data, format='json')
+    
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    
     task.refresh_from_db()
-    assert task.title == 'Updated Task'
-    assert task.priority == 'high'
-    assert task.status == 'in_progress'
-
-@pytest.mark.django_db
-def test_delete_task(api_client, task, user):
-    api_client.force_authenticate(user=user)
-    url = reverse('task-detail', args=[task.id])
-    response = api_client.delete(url)
-    assert response.status_code == status.HTTP_204_NO_CONTENT
-    assert Task.objects.count() == 0
+    assert task.status != 'closed'

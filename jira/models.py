@@ -14,6 +14,14 @@ class Organization(models.Model):
     def __str__(self):
         return self.name
     
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        self.assign_permissions()
+        
+    def assign_permissions(self):
+        for admin in self.admins.all():
+            assign_perm('manage_organization', admin, self)
+    
 
 class OrganizationAdmin(models.Model):
     user = models.ForeignKey(DjangoUser, on_delete=models.CASCADE, verbose_name='کاربر')
@@ -48,9 +56,22 @@ class Task(models.Model):
     ]
 
     STATUS_CHOICES = [
-        ('pending', 'در انتظار'),
+        ('todo', 'در انتظار'),
         ('in_progress', 'در حال انجام'),
-        ('completed', 'تکمیل شده'),
+        ('done', 'تکمیل شده'),
+        ('blocked', 'مسدود شده'),
+        ('cancelled', 'لغو شده'),
+        ('closed', 'بسته شده'),
+        ('reopened', 'بازگشایی شده'),
+        ('approved', 'تایید شده'),
+        ('review', 'در حال بررسی'),
+        ('test', 'در حال آزمایش'),
+        ('delivered', 'تحویل داده شده'),
+        ('deployed', 'مستقر شده'),
+        ('deferred', 'تأخیر افتاده'),
+        ('duplicate', 'تکراری'),
+        ('invalid', 'نامعتبر'),
+        ('not_a_bug', 'خطای نیست'),
     ]
 
     title = models.CharField(max_length=255, verbose_name='عنوان')
@@ -62,6 +83,15 @@ class Task(models.Model):
     assigned_to = models.ForeignKey(User, on_delete=models.CASCADE, related_name='assigned_tasks', verbose_name='اختصاص داده شده به')
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='tasks', verbose_name='سازمان')
     sprint = models.ForeignKey(Sprint, on_delete=models.CASCADE, related_name='tasks', verbose_name='اسپرینت', null=True, blank=True)
+
+    class Meta:
+        permissions = (
+            ("view_task_custom", "Can view task"),
+            ("change_task_custom", "Can change task"),
+            ("delete_task_custom", "Can delete task"),
+        )
+        verbose_name = 'تسک'
+        verbose_name_plural = 'تسک‌ها'
 
     def __str__(self):
         return self.title
@@ -76,14 +106,11 @@ class Task(models.Model):
         assign_perm('view_task_custom', self.assigned_to, self)
         assign_perm('change_task_custom', self.assigned_to, self)
 
-    class Meta:
-        permissions = (
-            ("view_task_custom", "Can view task"),
-            ("change_task_custom", "Can change task"),
-            ("delete_task_custom", "Can delete task"),
-        )
-        verbose_name = 'تسک'
-        verbose_name_plural = 'تسک‌ها'
+        for admin in self.organization.admins.all():
+            assign_perm('view_task_custom', admin, self)
+            assign_perm('change_task_custom', admin, self)
+            assign_perm('delete_task_custom', admin, self)
+
 
 class Comment(models.Model):
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='comments', verbose_name='تسک')
