@@ -28,6 +28,29 @@ services:
     networks:
       - jiranet
 
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    networks:
+      - jiranet
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A core worker --loglevel=info
+    volumes:
+      - .:/code
+    env_file:
+      - ./.env
+    depends_on:
+      - db
+      - redis
+    networks:
+      - jiranet
+
+
 volumes:
   postgres_data:
 

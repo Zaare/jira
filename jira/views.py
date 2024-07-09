@@ -3,6 +3,7 @@ from .models import Organization, OrganizationAdmin, Sprint, Task, Comment, Ment
 from .serializers import OrganizationSerializer, OrganizationAdminSerializer, SprintSerializer, TaskSerializer, CommentSerializer, MentionSerializer
 from guardian.shortcuts import get_objects_for_user
 from .permissions import IsDeveloperPermission, IsAdminUser 
+from .tasks import send_task_complete_email
 
 class OrganizationViewSet(viewsets.ModelViewSet):
     queryset = Organization.objects.all()
@@ -52,6 +53,17 @@ class TaskViewSet(viewsets.ModelViewSet):
         elif self.request.user.groups.filter(name='Developer').exists():
             return [IsDeveloperPermission()]
         return super().get_permissions()
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        if instance.status == 'done':
+            send_task_complete_email.delay(instance.id, instance.user.email)
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        if instance.status == 'done':
+            send_task_complete_email.delay(instance.id, instance.user.email)
+
 
 
 class CommentViewSet(viewsets.ModelViewSet):
